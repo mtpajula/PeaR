@@ -103,6 +103,8 @@ void toteutaTehtava() {
 		default :
 			displayCenteredBigTextLine(4, "default");
 			break;
+		case 3:
+			kippaa();
 	}
 	vaihe += 1;
 }
@@ -139,4 +141,16 @@ task main()
 			motor[motorC] = 0;
 		}
 	}
+}
+
+
+void kippaa(){
+if(roskilla = true){
+	motor[motorD] = 50;
+	wait1Msec(1000);
+	motor[motorD] = -50;
+
+return;
+	}
+
 }

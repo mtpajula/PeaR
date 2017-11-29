@@ -11,7 +11,25 @@
 int SYKLI = 50; // moottorien kayttoaika
 int PEHMEYS = 10; // Kiihdytyksen ja hidastuksen lisays
 int NOPEUS = 100; // Matkanopeus
-int KAANTONOPEUS = 30; // kaantymisen nopeus
+int HIDASNOPEUS = 30; // Hitaampi nopeus
+int TAVOITEVARI = 3; // Roskin vari
+int MUISTIPAIKKOJA 10; // Montako etenemista tallennetaan
+int KULMAMARGINAALI = 15; // Kuinka tarkkaan kaannytaan kulmaan
+int INFRAETAISYYS = 20; // Kuinka voimakkasti infra palaa
+// Colours range from 0 to 7
+// None    = 0
+// Black   = 1
+// Blue    = 2
+// Green   = 3
+// Yellow  = 4
+// Red     = 5
+// White   = 6
+// Brown   = 7
+
+// Globaalit muuttujat
+int syklit[MUISTIPAIKKOJA] = {0};
+short kulmat[MUISTIPAIKKOJA] = {0};
+int tallennusrivi = 0;
 
 // Abstrakti funktio, jonka kautta kaikki moottorikomennot ajetaan
 void liiku(int b, int c) {
@@ -27,6 +45,14 @@ void kuljeEteen() {
 
 void kuljeTaakse() {
 	liiku(NOPEUS*-1,NOPEUS*-1);
+}
+
+void kuljeEteenHitaasti() {
+	liiku(HIDASNOPEUS,HIDASNOPEUS);
+}
+
+void kuljeTaakseHitaasti() {
+	liiku(HIDASNOPEUS*-1,HIDASNOPEUS*-1);
 }
 
 // Kiihdytetaan
@@ -74,7 +100,6 @@ void peruuta() {
 	for (i = 1; i <= 7; i++) {
 		kuljeTaakse();
 	}
-
 }
 
 void kaanny(short kulma) {
@@ -82,57 +107,68 @@ void kaanny(short kulma) {
 	while (true) {
 
 		// Kaantyminen valmis
-		if (SensorValue(Gyroskooppi) > kulma-20 && SensorValue(Gyroskooppi) < kulma+20) {
+		if (SensorValue(Gyroskooppi) > kulma-KULMAMARGINAALI && SensorValue(Gyroskooppi) < kulma+KULMAMARGINAALI) {
 			liiku(0,0);
 			return;
 		}
 
 		// Kaaannytaan kohti tavoitekulmaa
 		if (SensorValue(Gyroskooppi) > kulma) {
-			liiku(KAANTONOPEUS,KAANTONOPEUS*-1);
+			liiku(HIDASNOPEUS,HIDASNOPEUS*-1);
 		} else if (SensorValue(Gyroskooppi) < kulma) {
-			liiku(KAANTONOPEUS*-1,KAANTONOPEUS);
+			liiku(HIDASNOPEUS*-1,HIDASNOPEUS);
 		}
 
 	}
+}
+
+void eteneSykli(short kulma) {
+
+	// Eroa kaytetaan, kun paatetaan, kuinka jyrkasti korjataan
+	int ero = abs(kulma - SensorValue(Gyroskooppi));
+
+	// Jos gyro eroaa tavoitelinjasta
+	if (SensorValue(Gyroskooppi) > kulma) {
+		if (ero < 30) {
+			// Jos ero on alle 30astetta, niin loiva kaannos
+			liiku(NOPEUS,NOPEUS-30);
+		} else {
+			// Muuten jyrkka kaannos
+			liiku(NOPEUS,NOPEUS/3);
+		}
+	} else if (SensorValue(Gyroskooppi) < kulma) {
+		if (ero < 30) {
+			liiku(NOPEUS-30,NOPEUS);
+		} else {
+			liiku(NOPEUS/3,NOPEUS);
+		}
+	} else {
+		liiku(NOPEUS,NOPEUS);
+	}
+
 }
 
 void etene(short kulma) {
 
+	kulmat[tallennusrivi] = kulma;
+
 	while (true) {
 
 		// Jos edessa jotain, lopetetaan eteneminen
-		if (getIRDistance(etaluotain) < 20) {
+		if (getIRDistance(etaluotain) < INFRAETAISYYS) {
 			return;
 		}
 
-		// Eroa kaytetaan, kun paatetaan, kuinka jyrkasti korjataan
-		int ero = abs(kulma - SensorValue(Gyroskooppi));
-
-		// Jos gyro eroaa tavoitelinjasta
-		if (SensorValue(Gyroskooppi) > kulma) {
-			if (ero < 30) {
-				// Jos ero on alle 30astetta, niin loiva kaannos
-				liiku(NOPEUS,NOPEUS-30);
-			} else {
-				// Muuten jyrkka kaannos
-				liiku(NOPEUS,NOPEUS/3);
-			}
-		} else if (SensorValue(Gyroskooppi) < kulma) {
-			if (ero < 30) {
-				liiku(NOPEUS-30,NOPEUS);
-			} else {
-				liiku(NOPEUS/3,NOPEUS);
-			}
-		} else {
-			kuljeEteen();
-		}
+		eteneSykli(kulma);
+		syklit[tallennusrivi] = syklit[tallennusrivi] + 1;
 
 	}
+	tallennusrivi += 1;
 }
 
 
 void kaannyYmpari(short kulma) {
+	displayCenteredBigTextLine(1, "kaannyYmpari %d", kulma);
 	wait1Msec(SYKLI*10);
 	kaanny(kulma);
 	wait1Msec(SYKLI*10);
@@ -140,6 +176,8 @@ void kaannyYmpari(short kulma) {
 
 
 void perilla() {
+
+	displayCenteredBigTextLine(1, "perilla");
 
 	wait1Msec(1000);
 	playTone(500, 50);
@@ -163,13 +201,58 @@ void perilla() {
 }
 
 
-/*
 bool haistele() {
 
+	int i, currentColour;
+	int colours[8] = {0};
+	int mostColor = 0;
+	int mostColorAmount = 0;
+
+	for (i = 0; i < 5; i++) {
+		kuljeEteenHitaasti();
+		currentColour = SensorValue[variluotain];
+		colours[currentColour] = colours[currentColour] + 1;
+	}
+	for (i = 5; i < 10; i++) {
+		kuljeTaakseHitaasti();
+		currentColour = SensorValue[variluotain];
+		colours[currentColour] = colours[currentColour] + 1;
+	}
+
+
+	for (i = 1; i <= 7; i++) {
+		if (colours[i] > mostColorAmount) {
+			mostColor = i;
+			mostColorAmount = colours[i];
+		}
+	}
+
+	if (mostColor == TAVOITEVARI) {
+		return true;
+	}
+	return false;
 }
-*/
+
+
+void palaaTakaisin() {
+	displayCenteredBigTextLine(1, "palaaTakaisin");
+	tallennusrivi -= 1;
+	int i, j, paluukulma;
+	for (i = tallennusrivi; i >= 0; i--) {
+		paluukulma = kulmat[i] - 180;
+		displayCenteredBigTextLine(1, "paluu %d", paluukulma);
+		kaanny(paluukulma);
+		kiihdytaEteen();
+		for (j = 0; j < syklit[i]; i++) {
+			eteneSykli(paluukulma);
+		}
+		hidastaEteen();
+	}
+}
+
 
 void mene(short kulma) {
+	displayCenteredBigTextLine(1, "mene %d", kulma);
 
 	displayCenteredBigTextLine(3, "kaanny");
 	kaanny(kulma);
@@ -179,6 +262,8 @@ void mene(short kulma) {
 	etene(kulma);
 	displayCenteredBigTextLine(3, "hidastaEteen");
 	hidastaEteen();
+	displayCenteredBigTextLine(3, "haistele");
+	bool kohteessa = haistele();
 	displayCenteredBigTextLine(3, "kiihdytaTaakse");
 	kiihdytaTaakse();
 	displayCenteredBigTextLine(3, "peruuta");
@@ -186,19 +271,16 @@ void mene(short kulma) {
 	displayCenteredBigTextLine(3, "hidastaTaakse");
 	hidastaTaakse();
 
-	/*
-	// Vaihtoehtoinen tapa
-	bool roskilla = haistele();
-
-	if (roskilla) {
-		perilla();
-	} else {
-		peruuta();
+	// TODO mita kun kohteessa?
+	if (kohteessa) {
+		playTone(600, 50);
+		wait1Msec(2000);
 	}
-	*/
+
 }
 
 void odotaKosketusta() {
+	displayCenteredBigTextLine(1, "odotaKosketusta");
 	while (true) {
 		// Tarkistetaan, että roska on laitettu kyytiin
 		if (SensorValue[kosketus]) {
@@ -214,16 +296,11 @@ task main()
 	setSensorMode(Gyroskooppi, modeEV3Gyro_Angle);
 	resetGyro(Gyroskooppi);
 
-	displayCenteredBigTextLine(1, "odotaKosketusta");
 	odotaKosketusta();
-	displayCenteredBigTextLine(1, "mene %d", 0);
 	mene(0);
-	displayCenteredBigTextLine(1, "mene %d", 90);
 	mene(90);
-	displayCenteredBigTextLine(1, "mene %d", 0);
 	mene(0);
-	displayCenteredBigTextLine(1, "kaannyYmpari %d", 180);
 	kaannyYmpari(180);
-	displayCenteredBigTextLine(1, "perilla");
 	perilla();
+	palaaTakaisin();
 }

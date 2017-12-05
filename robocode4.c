@@ -16,6 +16,7 @@ int TAVOITEVARI = 3; // Roskin vari
 int KULMAMARGINAALI = 10; // Kuinka tarkkaan kaannytaan kulmaan
 int INFRAETAISYYS = 20; // Kuinka voimakkasti infra palaa
 int PERUUTUSPITUUS = 7; // kuinka monta syklia on peruutus
+int PERUUTUSKORJAUS = 4; // kuinka monta syklia takaisin palatessa korjataan lisaa
 // Colours range from 0 to 7
 // None    = 0
 // Black   = 1
@@ -26,8 +27,10 @@ int PERUUTUSPITUUS = 7; // kuinka monta syklia on peruutus
 // White   = 6
 // Brown   = 7
 
-// Globaalit muuttujat
+// Vakiot
 int MUISTIPAIKKOJA = 20; // Montako etenemista tallennetaan
+
+// Globaalit muuttujat
 int syklit[20] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 short kulmat[20] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 int tallennusrivi = 0;
@@ -103,7 +106,7 @@ void peruuta() {
 }
 
 void kaanny(short kulma) {
-	
+
 	drawBmpfile(0, 127, "Gyro sensor");
 
 	while (true) {
@@ -151,7 +154,7 @@ void eteneSykli(short kulma) {
 }
 
 void etene(short kulma) {
-	
+
 	drawBmpfile(0, 127, "Forward");
 
 	kulmat[tallennusrivi] = kulma;
@@ -172,7 +175,7 @@ void etene(short kulma) {
 
 
 void kaannyYmpari(short kulma) {
-	
+
 	wait1Msec(SYKLI*10);
 	kaanny(kulma);
 	wait1Msec(SYKLI*10);
@@ -180,20 +183,20 @@ void kaannyYmpari(short kulma) {
 
 
 void perilla() {
-	
+
 	drawBmpfile(0, 127, "Big smile");
 
-	
+
 	wait1Msec(2000);
 	playSoundFile("Laser");
-	
+
 	motor[Mkippi] = -100;
 	wait1Msec(500);
 	motor[Mkippi] = 0;
 
 	wait1Msec(2000);
 	playSoundFile("Good job");
-	
+
 	motor[Mkippi] = 30;
 	wait1Msec(500);
 	motor[Mkippi] = 0;
@@ -203,7 +206,7 @@ void perilla() {
 
 
 int haistele() {
-	
+
 	drawBmpfile(0, 127, "Color sensor");
 
 	int i, currentColour;
@@ -246,18 +249,18 @@ int haistele() {
 void palaaTakaisin() {
 
 	int i, j, paluukulma;
-	
+
 	for (i = MUISTIPAIKKOJA-1; i >= 0; i--) {
 
-		syklit[i] = syklit[i] - PERUUTUSPITUUS;
+		syklit[i] = syklit[i] - PERUUTUSPITUUS - PERUUTUSKORJAUS;
 		if (syklit[i] <= 0) {
 			continue;
 		}
 
-		drawBmpfile(0, 127, "Backward");
 		paluukulma = kulmat[i] - 180;
 
 		kaanny(paluukulma);
+		drawBmpfile(0, 127, "Backward");
 		kiihdytaEteen();
 
 		for (j = 1; j <= syklit[i]; j++) {
@@ -266,7 +269,7 @@ void palaaTakaisin() {
 
 		hidastaEteen();
 	}
-	
+
 }
 
 
@@ -302,16 +305,30 @@ void odotaKosketusta() {
 	}
 }
 
+void nollaa() {
+
+	drawBmpfile(0, 127, "Tear");
+
+	int i;
+	for (i = 0; i < MUISTIPAIKKOJA; i++) {
+		syklit[i] = 0;
+		kulmat[i] = 0;
+	}
+	tallennusrivi = 0;
+
+	wait1Msec(1000);
+}
+
 task main()
 {
 	// Nollataan gyro robotin menosuunnan mukaiseksi
 	setSensorMode(Gyroskooppi, modeEV3Gyro_Angle);
 	resetGyro(Gyroskooppi);
 	drawBmpfile(0, 127, "Hourglass 0");
-	
+
 	setSoundVolume(100);
 	wait1Msec(2000);
-	
+
 	while (true) {
 		odotaKosketusta();
 		mene(0);
@@ -321,5 +338,6 @@ task main()
 		perilla();
 		palaaTakaisin();
 		kaannyYmpari(0);
+		nollaa();
 	}
 }
